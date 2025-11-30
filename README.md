@@ -1,4 +1,4 @@
-# dXVIIe = d17e = David Vandenbogaerde
+# dXVIIe == d17e == David Vandenbogaerde
 
 visit [d17e.dev](https//d17e.dev) for more...
 
