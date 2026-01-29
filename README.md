@@ -1,6 +1,6 @@
 # dXVIIe == d17e == David Vandenbogaerde
 
-visit [d17e.dev](https//d17e.dev) for more...
+visit [d17e.dev](https://d17e.dev) for more...
 
 ![site screenshot](/assets/d17e-dev-screenshot-2601.png)
 
