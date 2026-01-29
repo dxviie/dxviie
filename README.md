@@ -2,7 +2,7 @@
 
 visit [d17e.dev](https//d17e.dev) for more...
 
-![site screenshot](/assets/d17e-dev-screenshot.png)
+![site screenshot](/assets/d17e-dev-screenshot-2601.png)
 
 <!-- how do I embed an image? -->
 
