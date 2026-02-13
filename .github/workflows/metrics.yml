@@ -48,3 +48,13 @@ jobs:
           config_display: large
           config_timezone: Europe/Brussels
           filename: github-metrics.svg
+
+      - name: Bust README image cache
+        run: |
+          TIMESTAMP=$(date +%s)
+          sed -i "s|github-metrics\.svg?v=[0-9]*|github-metrics.svg?v=${TIMESTAMP}|" README.md
+          sed -i "s|github-metrics\.svg)|github-metrics.svg?v=${TIMESTAMP})|" README.md
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          git diff --cached --quiet || git commit -m "chore: bust metrics cache [skip ci]" && git push
