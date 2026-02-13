@@ -1,56 +1,51 @@
 /* d17e.dev styled theme for lowlighter/metrics */
 
-/* Dark background */
+/* Light background */
 foreignObject > div {
-  background-color: #1c1d20 !important;
+  background-color: #fdfaff !important;
 }
 
 svg {
-  background-color: #1c1d20;
-  color: #fdfaff;
-  font-family: Georgia, serif;
+  background-color: #fdfaff;
+  color: #1c1d20;
+  font-family: 'Courier New', 'Consolas', monospace;
 }
 
-/* Section headers and titles - monospace bold */
+/* All text monospace */
+*, h2, h3, section, .field, .entry, span, p, div {
+  font-family: 'Courier New', 'Consolas', monospace !important;
+  color: #1c1d20 !important;
+}
+
+/* Section headers and titles */
 h2, h3,
 section > .field > .label,
 .header .title,
 .field .name {
-  font-family: 'Courier New', monospace !important;
   font-weight: 700 !important;
   color: #ff3db4 !important;
 }
 
-/* All text should be light */
-section, .field, .entry, span, p, div {
-  color: #fdfaff !important;
-}
-
-/* Language bar colors are handled by metrics, but tweak values/numbers */
-.field .value {
-  color: #fdfaff !important;
-}
-
 /* Links / highlights */
 a {
-  color: #23d0ff !important;
+  color: #ff3db4 !important;
 }
 
 /* Numbers and stats emphasis */
 .field .value strong,
 .header .total,
 .counter {
-  color: #ffcc33 !important;
+  color: #ff3db4 !important;
 }
 
 /* Progress bars and charts accent */
 .progress {
-  background-color: #2a2b30 !important;
+  background-color: #e8e4ec !important;
 }
 
 /* Border/separator styling */
 section {
-  border-color: #2a2b30 !important;
+  border-color: #e8e4ec !important;
 }
 
 /* Icon tinting */
