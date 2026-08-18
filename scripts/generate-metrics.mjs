@@ -12,6 +12,8 @@ import { writeFile, readFile } from "node:fs/promises";
 import { fetchStats } from "./fetch-stats.mjs";
 import { renderCard } from "./render-card.mjs";
 
+const group = (n) => n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+
 function arg(name, fallback = null) {
   const i = process.argv.indexOf(`--${name}`);
   return i !== -1 && process.argv[i + 1] ? process.argv[i + 1] : fallback;
@@ -35,7 +37,23 @@ if (fixture) {
 
 if (dump) await writeFile(dump, `${JSON.stringify(stats, null, 2)}\n`);
 await writeFile(out, renderCard(stats));
-console.log(`Wrote ${out} for @${stats.user.login}`);
+const { count, privateCount, languageCount } = stats.repositories;
+console.log(
+  `Wrote ${out} for @${stats.user.login}: ${count} repos (${privateCount} private), ` +
+    `${languageCount} languages, ${group(stats.activity.commits)} commits`,
+);
+if (privateCount === 0) {
+  console.log(
+    "note: no private repos visible — METRICS_TOKEN needs read access to them " +
+      "(classic PAT with `repo`, or a fine-grained PAT with Metadata + Contents: Read on all repositories).",
+  );
+}
+if (stats.activity.privateContributions > 0) {
+  console.log(
+    `note: ${stats.activity.privateContributions} contributions are still restricted ` +
+      "— the token cannot see the repositories they were made in.",
+  );
+}
 }
 
 // A stack trace in the Actions log buries the one line that matters.

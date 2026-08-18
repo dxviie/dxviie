@@ -54,11 +54,11 @@ query($login: String!) {
 const REPOS = `
 query($login: String!, $cursor: String) {
   user(login: $login) {
-    repositories(first: 100, after: $cursor, ownerAffiliations: [OWNER], isFork: false, privacy: PUBLIC) {
+    repositories(first: 100, after: $cursor, ownerAffiliations: [OWNER], isFork: false) {
       totalCount
       pageInfo { hasNextPage endCursor }
       nodes {
-        name diskUsage stargazerCount forkCount
+        name isPrivate diskUsage stargazerCount forkCount
         watchers { totalCount }
         licenseInfo { spdxId }
         languages(first: 12, orderBy: { field: SIZE, direction: DESC }) {
@@ -69,8 +69,11 @@ query($login: String!, $cursor: String) {
   }
 }`;
 
-// The calendar covers the trailing year; the activity totals are lifetime, which
-// means one windowed contributionsCollection per year since the account opened.
+// The card shows only the last 30 days — GitHub already renders a full-year
+// calendar further down the profile. The trailing-year collection is still the
+// cheapest way to get those days; it is trimmed below. The activity totals are
+// lifetime, which means one windowed contributionsCollection per year since the
+// account opened.
 const CALENDAR = `
 query($login: String!) {
   user(login: $login) {
@@ -164,8 +167,20 @@ export async function fetchStats({ token, login, now = new Date() }) {
     },
     activity,
     repositories: summarizeRepos(repos),
-    calendar: calendarData.user.contributionsCollection.contributionCalendar,
+    recentActivity: lastDays(calendarData.user.contributionsCollection.contributionCalendar, 30),
   };
+}
+
+function lastDays(calendar, count) {
+  // Weeks arrive oldest-first and the last one is partial, so sort by date
+  // rather than trusting position.
+  const days = calendar.weeks
+    .flatMap((week) => week.contributionDays)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(-count)
+    .map((day) => ({ date: day.date, count: day.contributionCount }));
+
+  return { days, total: days.reduce((sum, day) => sum + day.count, 0) };
 }
 
 async function fetchAllRepos(token, login) {
@@ -187,9 +202,10 @@ async function fetchAllRepos(token, login) {
 function summarizeRepos(repos) {
   const languages = new Map();
   const licenses = new Map();
-  let stars = 0, forks = 0, watchers = 0, diskUsageKb = 0;
+  let stars = 0, forks = 0, watchers = 0, diskUsageKb = 0, privateCount = 0;
 
   for (const repo of repos) {
+    if (repo.isPrivate) privateCount += 1;
     stars += repo.stargazerCount;
     forks += repo.forkCount;
     watchers += repo.watchers.totalCount;
@@ -208,6 +224,7 @@ function summarizeRepos(repos) {
 
   return {
     count: repos.totalCount ?? repos.length,
+    privateCount,
     stars, forks, watchers, diskUsageKb,
     favouriteLicense,
     languageCount: byBytes.length,

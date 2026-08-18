@@ -126,7 +126,12 @@ export function renderCard(stats) {
       ["Watching", group(stats.community.watching)],
     ]],
     ["Repositories", [
-      ["Public repos", group(stats.repositories.count)],
+      ["Total", group(stats.repositories.count)],
+      // Only shown when the token can actually see them, so the row doubles as
+      // confirmation that private repos made it into the language totals.
+      ...(stats.repositories.privateCount
+        ? [["Private", group(stats.repositories.privateCount)]]
+        : []),
       ["Stargazers", group(stats.repositories.stars)],
       ["Forks", group(stats.repositories.forks)],
       ["Watchers", group(stats.repositories.watchers)],
@@ -190,10 +195,10 @@ export function renderCard(stats) {
     y += Math.ceil(langs.length / perRow) * 22 + 18;
   }
 
-  // ── contribution calendar ─────────────────────────────────────────────────
-  const cal = renderCalendar(stats.calendar, y);
-  out.push(cal.svg);
-  y = cal.bottom;
+  // ── recent activity ───────────────────────────────────────────────────────
+  const recent = renderRecentActivity(stats.recentActivity, y);
+  out.push(recent.svg);
+  y = recent.bottom;
 
   // ── footer ────────────────────────────────────────────────────────────────
   y += 10;
@@ -232,65 +237,76 @@ function topLanguages(languages, limit) {
   return shown;
 }
 
-function renderCalendar(calendar, top) {
-  const CELL = 11, GAP = 3, PITCH = CELL + GAP;
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const WEEKDAY_INITIALS = ["S", "M", "T", "W", "T", "F", "S"];
+
+const prettyDate = (iso) => {
+  const d = new Date(`${iso}T00:00:00Z`);
+  return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}`;
+};
+
+// A single strip, not a year grid: GitHub already draws the full calendar
+// further down the profile, so repeating it here earns nothing.
+function renderRecentActivity({ days, total }, top) {
+  if (!days.length) return { svg: "", bottom: top };
+
   const out = [];
   let y = top;
 
   out.push(
-    text(PAD, y, "CONTRIBUTIONS — LAST 12 MONTHS", { size: 11, weight: "bold", fill: C.accent, spacing: 1.4 }),
-    text(PAD + INNER, y, `${group(calendar.totalContributions)} total`, {
+    text(PAD, y, `LAST ${days.length} DAYS`, { size: 11, weight: "bold", fill: C.accent, spacing: 1.4 }),
+    text(PAD + INNER, y, `${group(total)} contribution${total === 1 ? "" : "s"}`, {
       size: 11, fill: C.muted, anchor: "end",
     }),
   );
   y += 20;
 
-  const weeks = calendar.weeks;
-  const counts = weeks.flatMap((w) => w.contributionDays.map((d) => d.contributionCount)).filter((c) => c > 0);
-  const max = counts.length ? Math.max(...counts) : 0;
-  const level = (n) => (n === 0 ? 0 : max <= 0 ? 0 : Math.min(4, Math.ceil((n / max) * 4)));
+  const GAP = 4;
+  // Size cells against a full 30-day strip, never against the day count: a
+  // short history should leave the row unfinished, not inflate into big blocks.
+  const slots = Math.max(days.length, 30);
+  const cell = (INNER - GAP * (slots - 1)) / slots;
+  const max = Math.max(0, ...days.map((day) => day.count));
+  const level = (n) => (n === 0 || max === 0 ? 0 : Math.min(4, Math.ceil((n / max) * 4)));
 
-  const monthLabelY = y;
-  y += 14;
-  const gridTop = y;
-
-  const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  let lastMonth = -1;
-  weeks.forEach((week, wi) => {
-    const first = week.contributionDays[0];
-    if (first) {
-      const d = new Date(`${first.date}T00:00:00Z`);
-      const month = d.getUTCMonth();
-      // Label a month the first time a week starts inside it, once it has room.
-      if (month !== lastMonth && d.getUTCDate() <= 7 && wi < weeks.length - 2) {
-        out.push(text(PAD + wi * PITCH, monthLabelY, MONTHS[month], { size: 10, fill: C.muted }));
-        lastMonth = month;
-      }
-    }
-    for (const day of week.contributionDays) {
-      const row = new Date(`${day.date}T00:00:00Z`).getUTCDay();
-      const lv = level(day.contributionCount);
-      out.push(
-        `<rect x="${PAD + wi * PITCH}" y="${gridTop + row * PITCH}" width="${CELL}" height="${CELL}" rx="2" ` +
-          `fill="${HEAT[lv]}"${lv === 0 ? ` stroke="${C.border}"` : ""}><title>${esc(day.date)}: ` +
-          `${day.contributionCount} contribution${day.contributionCount === 1 ? "" : "s"}</title></rect>`,
-      );
-    }
+  // Weekday initials sit above the strip; the strip spans a month, so a row of
+  // date labels underneath would collide at this cell width.
+  days.forEach((day, i) => {
+    const x = PAD + i * (cell + GAP);
+    const weekday = new Date(`${day.date}T00:00:00Z`).getUTCDay();
+    out.push(
+      text(x + cell / 2, y, WEEKDAY_INITIALS[weekday], { size: 9, fill: C.muted, anchor: "middle" }),
+    );
   });
+  y += 8;
 
-  const gridBottom = gridTop + 7 * PITCH;
+  days.forEach((day, i) => {
+    const x = PAD + i * (cell + GAP);
+    const lv = level(day.count);
+    out.push(
+      `<rect x="${x}" y="${y}" width="${cell}" height="${cell}" rx="4" fill="${HEAT[lv]}"` +
+        `${lv === 0 ? ` stroke="${C.border}"` : ""}><title>${esc(prettyDate(day.date))}: ` +
+        `${day.count} contribution${day.count === 1 ? "" : "s"}</title></rect>`,
+    );
+  });
+  y += cell + 16;
 
-  // Heatmap legend.
-  const legendY = gridBottom + 12;
-  let lx = PAD + INNER - (HEAT.length * (CELL + 3) + 76);
-  out.push(text(lx - 6, legendY + 9, "Less", { size: 10, fill: C.muted, anchor: "end" }));
+  // Range on the left, ramp legend on the right.
+  out.push(
+    text(PAD, y, `${prettyDate(days[0].date)} \u2013 ${prettyDate(days[days.length - 1].date)}`, {
+      size: 10, fill: C.muted,
+    }),
+  );
+  const sw = 11;
+  const lx = PAD + INNER - (HEAT.length * (sw + 3) + 70);
+  out.push(text(lx - 6, y, "Less", { size: 10, fill: C.muted, anchor: "end" }));
   HEAT.forEach((fill, i) => {
     out.push(
-      `<rect x="${lx + i * (CELL + 3)}" y="${legendY}" width="${CELL}" height="${CELL}" rx="2" fill="${fill}"` +
+      `<rect x="${lx + i * (sw + 3)}" y="${y - 9}" width="${sw}" height="${sw}" rx="2" fill="${fill}"` +
         `${i === 0 ? ` stroke="${C.border}"` : ""}/>`,
     );
   });
-  out.push(text(lx + HEAT.length * (CELL + 3) + 6, legendY + 9, "More", { size: 10, fill: C.muted }));
+  out.push(text(lx + HEAT.length * (sw + 3) + 6, y, "More", { size: 10, fill: C.muted }));
 
-  return { svg: out.join("\n"), bottom: legendY + CELL + 6 };
+  return { svg: out.join("\n"), bottom: y + 12 };
 }
