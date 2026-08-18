@@ -14,11 +14,18 @@ const C = {
   accent: "#ff3db4",
 };
 
-// Categorical slots, in fixed order. This ordering was chosen by enumerating
-// permutations against the data-viz validator: worst adjacent CVD ΔE 15.3
+// Categorical slots, in fixed order. Chosen against the data-viz validator by
+// searching for an ordering where every ADJACENT pair clears the gates (only
+// adjacent pairs matter for a stacked bar): worst adjacent CVD ΔE 15.3
 // (target >= 8), worst adjacent normal-vision ΔE 19.9 (floor 15) on surface
-// #fdfaff. Reordering these invalidates that result — re-run the validator.
-const SERIES = ["#ff3db4", "#eb6834", "#2a78d6", "#1baf7a", "#4a3aa7", "#008300", "#eda100", "#e34948"];
+// #fdfaff. Slots 9-11 extend the original eight without changing them, and
+// without moving either worst case. Reordering invalidates that result — re-run
+// the validator. Three slots sit under 3:1 against the surface, which the
+// direct-labelled legend below is the required relief for.
+const SERIES = [
+  "#ff3db4", "#eb6834", "#2a78d6", "#1baf7a", "#4a3aa7", "#008300",
+  "#eda100", "#e34948", "#00a0c6", "#7a9e00", "#9b3fd4",
+];
 const OTHER = "#9c96a6";
 
 // Sequential ramp for the calendar: one hue, light -> dark.
@@ -143,7 +150,7 @@ export function renderCard(stats) {
   y = columnBottom + 24;
 
   // ── languages ─────────────────────────────────────────────────────────────
-  const langs = topLanguages(stats.repositories.languages, 8);
+  const langs = topLanguages(stats.repositories.languages, SERIES.length);
   if (langs.length) {
     out.push(
       text(PAD, y, `MOST USED LANGUAGES  (${stats.repositories.languageCount} total)`, {
@@ -160,7 +167,10 @@ export function renderCard(stats) {
       const segment = lang.share * INNER;
       const isLast = i === langs.length - 1;
       // 2px surface gap between segments, per the mark spec.
-      const drawn = Math.max(0, isLast ? segment : segment - 2);
+      // Floor the drawn width so a sub-1% language still shows a mark against
+      // its legend entry. Positions use the true share, and segments paint in
+      // order, so the next one covers any overhang.
+      const drawn = isLast ? segment : Math.max(2, segment - 2);
       out.push(`<rect x="${cursor}" y="${y}" width="${drawn}" height="${bh}" fill="${lang.color}"/>`);
       cursor += segment;
     });
