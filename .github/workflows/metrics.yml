@@ -29,28 +29,49 @@ jobs:
       - name: Generate metrics card
         env:
           GITHUB_LOGIN: ${{ github.repository_owner }}
-          # The ephemeral job token is enough for public profile data. Set a
-          # METRICS_TOKEN secret only to pick up private contribution counts;
-          # a fine-grained PAT with no permissions selected is sufficient.
+          # METRICS_TOKEN must be able to read private repositories, or their
+          # languages are missing from the card: a classic PAT with `repo`, or a
+          # fine-grained PAT with Metadata + Contents: Read on all repositories.
+          # Without the secret this falls back to the ephemeral job token, which
+          # sees public repositories only.
           METRICS_TOKEN: ${{ secrets.METRICS_TOKEN || github.token }}
         run: node scripts/generate-metrics.mjs --out github-metrics.svg
 
       - name: Commit card
         run: |
           set -euo pipefail
-          # Camo caches by URL, so the README query string has to move with it.
-          TIMESTAMP=$(date +%s)
-          sed -i -E "s|github-metrics\.svg(\?v=[0-9]+)?\)|github-metrics.svg?v=${TIMESTAMP})|" README.md
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add github-metrics.svg README.md
-          if git diff --cached --quiet; then
-            echo "No change to the metrics card."
-            exit 0
-          fi
-          git commit -m "chore: refresh metrics card [skip ci]"
+
+          # Each attempt rebuilds both commits on top of whatever main is now.
+          # The README records a commit SHA, so the history it names has to be
+          # the history that gets pushed — rebasing after the fact would leave
+          # the README pointing at a commit that no longer exists.
           for attempt in 1 2 3 4; do
-            git pull --rebase origin main && git push origin HEAD:main && exit 0
+            git fetch --quiet origin main
+            git reset --quiet --mixed FETCH_HEAD
+
+            if git diff --quiet -- github-metrics.svg; then
+              echo "Card unchanged; nothing to commit."
+              exit 0
+            fi
+
+            git add github-metrics.svg
+            git commit --quiet -m "chore: refresh metrics card [skip ci]"
+
+            # Point the README at this exact commit rather than at the branch
+            # with a ?v= query string. A query string only busts caches that key
+            # on it; changing the path itself cannot be normalised away, so the
+            # profile page is guaranteed to fetch the new card.
+            SHA=$(git rev-parse HEAD)
+            sed -i -E "s#(raw\.githubusercontent\.com/[^/]+/[^/]+)/[^/]+/github-metrics\.svg(\?[^)]*)?#\1/${SHA}/github-metrics.svg#" README.md
+            git add README.md
+            git commit --quiet -m "chore: point README at refreshed card [skip ci]"
+
+            if git push --quiet origin HEAD:main; then
+              echo "Pushed card at ${SHA}."
+              exit 0
+            fi
             echo "Push failed (attempt ${attempt}); retrying."
             sleep $((2 ** attempt))
           done

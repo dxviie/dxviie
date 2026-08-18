@@ -22,9 +22,19 @@ tag. Nothing here leaves the repo, so no external code ever sees a token.
 GITHUB_LOGIN=dxviie METRICS_TOKEN=<token> node scripts/generate-metrics.mjs
 ```
 
-`METRICS_TOKEN` needs **public read access only** — a fine-grained PAT with no
-permissions selected is enough. In CI the workflow falls back to the job's
-ephemeral `GITHUB_TOKEN` when no secret is set.
+`METRICS_TOKEN` needs to **read private repositories** — otherwise their
+languages are missing from the card, which is most of the point. Either a
+classic PAT with the `repo` scope, or a fine-grained PAT scoped to *all*
+repositories with **Metadata: Read** and **Contents: Read**.
+
+Without the secret the workflow falls back to the job's ephemeral
+`GITHUB_TOKEN`, which sees public repositories only. The run logs which case it
+landed in, so check there if the language list looks short.
+
+That is a broader token than public-only stats would need. It is still a large
+improvement on the previous setup: the token is now only ever read by code in
+this repository, rather than being written into a `.env` file and handed to a
+Docker image pulled from a mutable tag.
 
 Iterate on the design without burning API calls by saving a payload and
 re-rendering from it:
@@ -51,3 +61,16 @@ language carries a direct label in the legend.
 
 The contribution heatmap is a single-hue sequential ramp, light to dark — not
 GitHub's green, and deliberately not a multi-hue scale.
+
+## Cache busting
+
+The README points at the card by **commit SHA**, not by branch plus a `?v=`
+query string:
+
+```
+https://raw.githubusercontent.com/dxviie/dxviie/<sha>/github-metrics.svg
+```
+
+The workflow commits the card, then rewrites that SHA in a second commit. A
+query string only busts caches that key on it; changing the path itself cannot
+be normalised away, so the profile page always fetches the new card.

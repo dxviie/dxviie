@@ -54,11 +54,11 @@ query($login: String!) {
 const REPOS = `
 query($login: String!, $cursor: String) {
   user(login: $login) {
-    repositories(first: 100, after: $cursor, ownerAffiliations: [OWNER], isFork: false, privacy: PUBLIC) {
+    repositories(first: 100, after: $cursor, ownerAffiliations: [OWNER], isFork: false) {
       totalCount
       pageInfo { hasNextPage endCursor }
       nodes {
-        name diskUsage stargazerCount forkCount
+        name isPrivate diskUsage stargazerCount forkCount
         watchers { totalCount }
         licenseInfo { spdxId }
         languages(first: 12, orderBy: { field: SIZE, direction: DESC }) {
@@ -187,9 +187,10 @@ async function fetchAllRepos(token, login) {
 function summarizeRepos(repos) {
   const languages = new Map();
   const licenses = new Map();
-  let stars = 0, forks = 0, watchers = 0, diskUsageKb = 0;
+  let stars = 0, forks = 0, watchers = 0, diskUsageKb = 0, privateCount = 0;
 
   for (const repo of repos) {
+    if (repo.isPrivate) privateCount += 1;
     stars += repo.stargazerCount;
     forks += repo.forkCount;
     watchers += repo.watchers.totalCount;
@@ -208,6 +209,7 @@ function summarizeRepos(repos) {
 
   return {
     count: repos.totalCount ?? repos.length,
+    privateCount,
     stars, forks, watchers, diskUsageKb,
     favouriteLicense,
     languageCount: byBytes.length,

@@ -126,7 +126,12 @@ export function renderCard(stats) {
       ["Watching", group(stats.community.watching)],
     ]],
     ["Repositories", [
-      ["Public repos", group(stats.repositories.count)],
+      ["Total", group(stats.repositories.count)],
+      // Only shown when the token can actually see them, so the row doubles as
+      // confirmation that private repos made it into the language totals.
+      ...(stats.repositories.privateCount
+        ? [["Private", group(stats.repositories.privateCount)]]
+        : []),
       ["Stargazers", group(stats.repositories.stars)],
       ["Forks", group(stats.repositories.forks)],
       ["Watchers", group(stats.repositories.watchers)],
