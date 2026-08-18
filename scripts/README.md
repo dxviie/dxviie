@@ -57,12 +57,21 @@ page, so repeating them was duplication; only the handle remains, as an anchor
 for when the SVG is opened on its own.
 
 Colors come from the d17e.dev palette. The categorical order in
-`render-card.mjs` was picked by enumerating permutations against the data-viz
-validator — worst adjacent CVD ΔE 15.3 against a ≥8 target, worst adjacent
-normal-vision ΔE 19.9 against a 15 floor, on surface `#fdfaff`. **Reordering
-those hues invalidates that result**; re-run the validator if you change them.
-Two slots sit under 3:1 contrast against the surface, which is why every
-language carries a direct label in the legend.
+`render-card.mjs` has 11 slots, found by searching for an ordering in which
+every *adjacent* pair clears the data-viz validator's gates — adjacent pairs are
+the ones that matter for a stacked bar. Worst adjacent CVD ΔE 15.3 against a ≥8
+target, worst adjacent normal-vision ΔE 19.9 against a 15 floor, on surface
+`#fdfaff`. **Reordering those hues invalidates that result**; re-run the
+validator if you change them:
+
+```sh
+node validate_palette.js "<comma-separated hexes>" --mode light --surface "#fdfaff"
+```
+
+Three slots sit under 3:1 contrast against the surface, which is why every
+language carries a direct label in the legend — that relief is mandatory, not
+cosmetic. Languages past the 11th fold into a neutral "Other", never a generated
+hue.
 
 Activity is a single 30-day strip rather than a year grid. GitHub already
 renders a full contribution calendar further down the profile, so repeating it
