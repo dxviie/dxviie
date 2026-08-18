@@ -69,8 +69,11 @@ query($login: String!, $cursor: String) {
   }
 }`;
 
-// The calendar covers the trailing year; the activity totals are lifetime, which
-// means one windowed contributionsCollection per year since the account opened.
+// The card shows only the last 30 days — GitHub already renders a full-year
+// calendar further down the profile. The trailing-year collection is still the
+// cheapest way to get those days; it is trimmed below. The activity totals are
+// lifetime, which means one windowed contributionsCollection per year since the
+// account opened.
 const CALENDAR = `
 query($login: String!) {
   user(login: $login) {
@@ -164,8 +167,20 @@ export async function fetchStats({ token, login, now = new Date() }) {
     },
     activity,
     repositories: summarizeRepos(repos),
-    calendar: calendarData.user.contributionsCollection.contributionCalendar,
+    recentActivity: lastDays(calendarData.user.contributionsCollection.contributionCalendar, 30),
   };
+}
+
+function lastDays(calendar, count) {
+  // Weeks arrive oldest-first and the last one is partial, so sort by date
+  // rather than trusting position.
+  const days = calendar.weeks
+    .flatMap((week) => week.contributionDays)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(-count)
+    .map((day) => ({ date: day.date, count: day.contributionCount }));
+
+  return { days, total: days.reduce((sum, day) => sum + day.count, 0) };
 }
 
 async function fetchAllRepos(token, login) {

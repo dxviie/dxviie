@@ -59,8 +59,15 @@ those hues invalidates that result**; re-run the validator if you change them.
 Two slots sit under 3:1 contrast against the surface, which is why every
 language carries a direct label in the legend.
 
-The contribution heatmap is a single-hue sequential ramp, light to dark — not
-GitHub's green, and deliberately not a multi-hue scale.
+Activity is a single 30-day strip rather than a year grid. GitHub already
+renders a full contribution calendar further down the profile, so repeating it
+here added height without adding information. The strip is a single-hue
+sequential ramp, light to dark — not GitHub's green, and deliberately not a
+multi-hue scale.
+
+Cells are sized against a full 30 slots, never against the number of days
+returned, so a short history leaves the row unfinished instead of inflating into
+oversized blocks.
 
 ## Cache busting
 
