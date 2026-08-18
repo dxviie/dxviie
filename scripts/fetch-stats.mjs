@@ -38,8 +38,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const PROFILE = `
 query($login: String!) {
   user(login: $login) {
-    name login createdAt url
-    avatarUrl(size: 160)
+    login createdAt url
     followers { totalCount }
     following { totalCount }
     starredRepositories { totalCount }
@@ -99,21 +98,6 @@ function lifetimeQuery(years) {
   return `query($login: String!) { user(login: $login) { ${parts.join("\n")} } }`;
 }
 
-async function fetchAvatarDataUri(url) {
-  // Inlined as a data URI: GitHub serves the card through camo as an <img>, and an
-  // SVG loaded that way cannot pull in external resources.
-  try {
-    const res = await fetch(url, { headers: { "user-agent": "dxviie-metrics" } });
-    if (!res.ok) return null;
-    const type = res.headers.get("content-type") ?? "image/png";
-    const buf = Buffer.from(await res.arrayBuffer());
-    if (buf.byteLength > 512 * 1024) return null;
-    return `data:${type};base64,${buf.toString("base64")}`;
-  } catch {
-    return null;
-  }
-}
-
 export async function fetchStats({ token, login, now = new Date() }) {
   const profileData = await gql(token, PROFILE, { login });
   const user = profileData.user;
@@ -123,11 +107,10 @@ export async function fetchStats({ token, login, now = new Date() }) {
   const years = [];
   for (let y = startYear; y <= now.getUTCFullYear(); y++) years.push(y);
 
-  const [lifetimeData, calendarData, repos, avatar] = await Promise.all([
+  const [lifetimeData, calendarData, repos] = await Promise.all([
     gql(token, lifetimeQuery(years), { login }),
     gql(token, CALENDAR, { login }),
     fetchAllRepos(token, login),
-    fetchAvatarDataUri(user.avatarUrl),
   ]);
 
   const activity = {
@@ -151,11 +134,9 @@ export async function fetchStats({ token, login, now = new Date() }) {
   return {
     generatedAt: now.toISOString(),
     user: {
-      name: user.name ?? user.login,
       login: user.login,
       url: user.url,
       createdAt: user.createdAt,
-      avatar,
     },
     community: {
       followers: user.followers.totalCount,
