@@ -48,8 +48,13 @@ node scripts/generate-metrics.mjs --fixture stats.json   # offline from here
 
 The card is **pure SVG** — no `<foreignObject>`. GitHub serves it through camo
 as an `<img>`, and plain `<rect>`/`<text>`/`<path>` is the shape that renders
-identically across browsers. The avatar is inlined as a data URI for the same
-reason: an SVG loaded as an image cannot fetch external resources.
+identically across browsers. It is also self-contained by necessity: an SVG
+loaded as an image cannot fetch external resources, so nothing here references a
+remote URL.
+
+The card carries no name or avatar. It sits directly beneath both on the profile
+page, so repeating them was duplication; only the handle remains, as an anchor
+for when the SVG is opened on its own.
 
 Colors come from the d17e.dev palette. The categorical order in
 `render-card.mjs` was picked by enumerating permutations against the data-viz

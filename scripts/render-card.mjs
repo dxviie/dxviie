@@ -61,32 +61,20 @@ export function renderCard(stats) {
   let y = PAD;
 
   // ── header ────────────────────────────────────────────────────────────────
-  const AV = 84;
-  if (stats.user.avatar) {
-    out.push(
-      `<clipPath id="avatar"><circle cx="${PAD + AV / 2}" cy="${y + AV / 2}" r="${AV / 2}"/></clipPath>`,
-      // Both spellings: SVG2 renderers take href, older ones take xlink:href.
-      `<image x="${PAD}" y="${y}" width="${AV}" height="${AV}" clip-path="url(#avatar)" ` +
-        `href="${stats.user.avatar}" xlink:href="${stats.user.avatar}"/>`,
-    );
-  }
+  // No name or avatar: this card sits directly beneath both on the profile, so
+  // repeating them is pure duplication. The handle stays as a quiet anchor for
+  // when the SVG is opened on its own.
   out.push(
-    `<circle cx="${PAD + AV / 2}" cy="${y + AV / 2}" r="${AV / 2}" fill="none" stroke="${C.accent}" stroke-width="2"/>`,
-  );
-
-  const tx = PAD + AV + 22;
-  out.push(text(tx, y + 30, stats.user.name, { size: 24, weight: "bold", fill: C.accent }));
-  out.push(text(tx, y + 54, `@${stats.user.login}`, { size: 13, fill: C.muted }));
-  out.push(
+    text(PAD, y + 12, `@${stats.user.login}`, { size: 14, weight: "bold", fill: C.accent }),
     text(
-      tx,
-      y + 76,
+      PAD + INNER,
+      y + 12,
       `Joined GitHub ${yearsSince(stats.user.createdAt, now)} years ago  ·  ` +
         `Contributed to ${group(stats.community.contributedTo)} repositories`,
-      { size: 13, fill: C.muted },
+      { size: 12, fill: C.muted, anchor: "end" },
     ),
   );
-  y += AV + 34;
+  y += 40;
 
   // ── hero tiles ────────────────────────────────────────────────────────────
   const tiles = [
@@ -210,7 +198,7 @@ export function renderCard(stats) {
   const height = Math.ceil(y + PAD - 8);
 
   return [
-    `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" `,
+    `<svg xmlns="http://www.w3.org/2000/svg" `,
     `width="${W}" height="${height}" viewBox="0 0 ${W} ${height}" font-family="${FONT}" role="img" `,
     `aria-label="GitHub statistics for ${esc(stats.user.login)}">`,
     `<rect width="${W}" height="${height}" rx="12" fill="${C.surface}" stroke="${C.border}"/>`,
