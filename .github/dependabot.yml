@@ -1,0 +1,8 @@
+version: 2
+updates:
+  # The metrics workflow pins actions/checkout to a commit SHA. Dependabot
+  # turns each bump into a reviewable PR rather than a silent moving tag.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

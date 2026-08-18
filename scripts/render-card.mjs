@@ -1,0 +1,296 @@
+// Renders the stats card as plain SVG — <rect>, <text>, <path> only.
+//
+// Deliberately no <foreignObject>: GitHub serves the card through camo as an
+// <img>, and pure SVG is the shape that renders identically everywhere. The
+// monospace stack keeps advance widths predictable so nothing collides.
+
+// ── d17e.dev palette ────────────────────────────────────────────────────────
+const C = {
+  surface: "#fdfaff",
+  panel: "#f7f2f9",
+  border: "#e8e4ec",
+  ink: "#1c1d20",
+  muted: "#6b6673",
+  accent: "#ff3db4",
+};
+
+// Categorical slots, in fixed order. This ordering was chosen by enumerating
+// permutations against the data-viz validator: worst adjacent CVD ΔE 15.3
+// (target >= 8), worst adjacent normal-vision ΔE 19.9 (floor 15) on surface
+// #fdfaff. Reordering these invalidates that result — re-run the validator.
+const SERIES = ["#ff3db4", "#eb6834", "#2a78d6", "#1baf7a", "#4a3aa7", "#008300", "#eda100", "#e34948"];
+const OTHER = "#9c96a6";
+
+// Sequential ramp for the calendar: one hue, light -> dark.
+const HEAT = ["#ece7ef", "#ffc9e8", "#ff8ecd", "#ff3db4", "#c4157f"];
+
+const FONT = "'Courier New', Courier, monospace";
+const W = 960;
+const PAD = 32;
+const INNER = W - PAD * 2;
+
+const esc = (s) =>
+  String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" })[c]);
+
+const group = (n) => Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+
+function compact(n) {
+  if (n < 1000) return String(n);
+  if (n < 1_000_000) return `${(n / 1000).toFixed(n < 10_000 ? 1 : 0)}k`;
+  return `${(n / 1_000_000).toFixed(2)}m`;
+}
+
+function humanBytes(kb) {
+  const units = [["TB", 1024 ** 3], ["GB", 1024 ** 2], ["MB", 1024], ["kB", 1]];
+  for (const [unit, size] of units) if (kb >= size) return `${(kb / size).toFixed(kb / size < 10 ? 2 : 1)} ${unit}`;
+  return "0 kB";
+}
+
+function yearsSince(iso, now) {
+  const years = (now - new Date(iso)) / (365.2425 * 24 * 3600 * 1000);
+  return Math.max(0, Math.floor(years));
+}
+
+const text = (x, y, s, { size = 13, fill = C.ink, weight = "normal", anchor = "start", spacing } = {}) =>
+  `<text x="${x}" y="${y}" font-size="${size}" fill="${fill}" font-weight="${weight}" text-anchor="${anchor}"` +
+  `${spacing ? ` letter-spacing="${spacing}"` : ""}>${esc(s)}</text>`;
+
+export function renderCard(stats) {
+  const now = new Date(stats.generatedAt);
+  const out = [];
+  let y = PAD;
+
+  // ── header ────────────────────────────────────────────────────────────────
+  const AV = 84;
+  if (stats.user.avatar) {
+    out.push(
+      `<clipPath id="avatar"><circle cx="${PAD + AV / 2}" cy="${y + AV / 2}" r="${AV / 2}"/></clipPath>`,
+      // Both spellings: SVG2 renderers take href, older ones take xlink:href.
+      `<image x="${PAD}" y="${y}" width="${AV}" height="${AV}" clip-path="url(#avatar)" ` +
+        `href="${stats.user.avatar}" xlink:href="${stats.user.avatar}"/>`,
+    );
+  }
+  out.push(
+    `<circle cx="${PAD + AV / 2}" cy="${y + AV / 2}" r="${AV / 2}" fill="none" stroke="${C.accent}" stroke-width="2"/>`,
+  );
+
+  const tx = PAD + AV + 22;
+  out.push(text(tx, y + 30, stats.user.name, { size: 24, weight: "bold", fill: C.accent }));
+  out.push(text(tx, y + 54, `@${stats.user.login}`, { size: 13, fill: C.muted }));
+  out.push(
+    text(
+      tx,
+      y + 76,
+      `Joined GitHub ${yearsSince(stats.user.createdAt, now)} years ago  ·  ` +
+        `Contributed to ${group(stats.community.contributedTo)} repositories`,
+      { size: 13, fill: C.muted },
+    ),
+  );
+  y += AV + 34;
+
+  // ── hero tiles ────────────────────────────────────────────────────────────
+  const tiles = [
+    ["Commits", stats.activity.commits],
+    ["Pull requests", stats.activity.pullRequests],
+    ["Repositories", stats.repositories.count],
+    ["Stargazers", stats.repositories.stars],
+  ];
+  const gap = 16;
+  const tw = (INNER - gap * (tiles.length - 1)) / tiles.length;
+  const th = 78;
+  tiles.forEach(([label, value], i) => {
+    const x = PAD + i * (tw + gap);
+    out.push(
+      `<rect x="${x}" y="${y}" width="${tw}" height="${th}" rx="8" fill="${C.panel}" stroke="${C.border}"/>`,
+      `<rect x="${x}" y="${y}" width="3" height="${th}" rx="1.5" fill="${C.accent}"/>`,
+      text(x + 18, y + 42, compact(value), { size: 30, weight: "bold", fill: C.accent }),
+      text(x + 18, y + 63, label.toUpperCase(), { size: 10, fill: C.muted, spacing: 1.2 }),
+    );
+  });
+  y += th + 34;
+
+  // ── three stat columns ────────────────────────────────────────────────────
+  const columns = [
+    ["Activity", [
+      ["Commits", group(stats.activity.commits)],
+      ["Pull requests opened", group(stats.activity.pullRequests)],
+      ["Reviews given", group(stats.activity.reviews)],
+      ["Issues opened", group(stats.activity.issues)],
+      ["Issue comments", group(stats.activity.issueComments)],
+    ]],
+    ["Community", [
+      ["Followers", group(stats.community.followers)],
+      ["Following", group(stats.community.following)],
+      ["Organizations", group(stats.community.organizations)],
+      ["Starred", group(stats.community.starred)],
+      ["Watching", group(stats.community.watching)],
+    ]],
+    ["Repositories", [
+      ["Public repos", group(stats.repositories.count)],
+      ["Stargazers", group(stats.repositories.stars)],
+      ["Forks", group(stats.repositories.forks)],
+      ["Watchers", group(stats.repositories.watchers)],
+      ["Disk usage", humanBytes(stats.repositories.diskUsageKb)],
+      ["Prefers license", stats.repositories.favouriteLicense ?? "n/a"],
+    ]],
+  ];
+  const cw = (INNER - gap * 2) / 3;
+  let columnBottom = y;
+  columns.forEach(([title, rows], i) => {
+    const x = PAD + i * (cw + gap);
+    out.push(text(x, y, title.toUpperCase(), { size: 11, weight: "bold", fill: C.accent, spacing: 1.4 }));
+    out.push(`<line x1="${x}" y1="${y + 8}" x2="${x + cw}" y2="${y + 8}" stroke="${C.border}"/>`);
+    rows.forEach(([label, value], r) => {
+      const ry = y + 30 + r * 22;
+      out.push(text(x, ry, label, { size: 12.5, fill: C.muted }));
+      out.push(text(x + cw, ry, value, { size: 12.5, weight: "bold", fill: C.ink, anchor: "end" }));
+    });
+    columnBottom = Math.max(columnBottom, y + 30 + rows.length * 22);
+  });
+  y = columnBottom + 24;
+
+  // ── languages ─────────────────────────────────────────────────────────────
+  const langs = topLanguages(stats.repositories.languages, 8);
+  if (langs.length) {
+    out.push(
+      text(PAD, y, `MOST USED LANGUAGES  (${stats.repositories.languageCount} total)`, {
+        size: 11, weight: "bold", fill: C.accent, spacing: 1.4,
+      }),
+    );
+    y += 16;
+
+    const bh = 16;
+    out.push(`<clipPath id="langbar"><rect x="${PAD}" y="${y}" width="${INNER}" height="${bh}" rx="${bh / 2}"/></clipPath>`);
+    out.push(`<g clip-path="url(#langbar)">`);
+    let cursor = PAD;
+    langs.forEach((lang, i) => {
+      const segment = lang.share * INNER;
+      const isLast = i === langs.length - 1;
+      // 2px surface gap between segments, per the mark spec.
+      const drawn = Math.max(0, isLast ? segment : segment - 2);
+      out.push(`<rect x="${cursor}" y="${y}" width="${drawn}" height="${bh}" fill="${lang.color}"/>`);
+      cursor += segment;
+    });
+    out.push(`</g>`);
+    y += bh + 24;
+
+    // Legend, direct-labelled with the share — this is also the relief the
+    // validator requires for the two slots under 3:1 against the surface.
+    const perRow = 4;
+    const lw = INNER / perRow;
+    langs.forEach((lang, i) => {
+      const lx = PAD + (i % perRow) * lw;
+      const ly = y + Math.floor(i / perRow) * 22;
+      out.push(`<rect x="${lx}" y="${ly - 9}" width="10" height="10" rx="2" fill="${lang.color}"/>`);
+      out.push(text(lx + 18, ly, truncate(lang.name, 15), { size: 12, fill: C.ink }));
+      out.push(text(lx + lw - 12, ly, `${(lang.share * 100).toFixed(1)}%`, {
+        size: 12, fill: C.muted, anchor: "end",
+      }));
+    });
+    y += Math.ceil(langs.length / perRow) * 22 + 18;
+  }
+
+  // ── contribution calendar ─────────────────────────────────────────────────
+  const cal = renderCalendar(stats.calendar, y);
+  out.push(cal.svg);
+  y = cal.bottom;
+
+  // ── footer ────────────────────────────────────────────────────────────────
+  y += 10;
+  out.push(
+    text(W - PAD, y, `Generated ${now.toISOString().replace("T", " ").slice(0, 16)} UTC · d17e.dev`, {
+      size: 10, fill: C.muted, anchor: "end",
+    }),
+  );
+  const height = Math.ceil(y + PAD - 8);
+
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" `,
+    `width="${W}" height="${height}" viewBox="0 0 ${W} ${height}" font-family="${FONT}" role="img" `,
+    `aria-label="GitHub statistics for ${esc(stats.user.login)}">`,
+    `<rect width="${W}" height="${height}" rx="12" fill="${C.surface}" stroke="${C.border}"/>`,
+    out.join("\n"),
+    `</svg>`,
+    ``,
+  ].join("\n");
+}
+
+// Monospace advance is ~0.6em, so the legend column fits about 15 characters
+// beside its right-aligned percentage.
+const truncate = (s, max) => (s.length <= max ? s : `${s.slice(0, max - 1)}\u2026`);
+
+function topLanguages(languages, limit) {
+  const shown = languages.slice(0, limit).map((lang, i) => ({ ...lang, color: SERIES[i] }));
+  const rest = languages.slice(limit);
+  if (rest.length) {
+    shown.push({
+      name: `Other (${rest.length})`,
+      share: rest.reduce((sum, l) => sum + l.share, 0),
+      color: OTHER,
+    });
+  }
+  return shown;
+}
+
+function renderCalendar(calendar, top) {
+  const CELL = 11, GAP = 3, PITCH = CELL + GAP;
+  const out = [];
+  let y = top;
+
+  out.push(
+    text(PAD, y, "CONTRIBUTIONS — LAST 12 MONTHS", { size: 11, weight: "bold", fill: C.accent, spacing: 1.4 }),
+    text(PAD + INNER, y, `${group(calendar.totalContributions)} total`, {
+      size: 11, fill: C.muted, anchor: "end",
+    }),
+  );
+  y += 20;
+
+  const weeks = calendar.weeks;
+  const counts = weeks.flatMap((w) => w.contributionDays.map((d) => d.contributionCount)).filter((c) => c > 0);
+  const max = counts.length ? Math.max(...counts) : 0;
+  const level = (n) => (n === 0 ? 0 : max <= 0 ? 0 : Math.min(4, Math.ceil((n / max) * 4)));
+
+  const monthLabelY = y;
+  y += 14;
+  const gridTop = y;
+
+  const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  let lastMonth = -1;
+  weeks.forEach((week, wi) => {
+    const first = week.contributionDays[0];
+    if (first) {
+      const d = new Date(`${first.date}T00:00:00Z`);
+      const month = d.getUTCMonth();
+      // Label a month the first time a week starts inside it, once it has room.
+      if (month !== lastMonth && d.getUTCDate() <= 7 && wi < weeks.length - 2) {
+        out.push(text(PAD + wi * PITCH, monthLabelY, MONTHS[month], { size: 10, fill: C.muted }));
+        lastMonth = month;
+      }
+    }
+    for (const day of week.contributionDays) {
+      const row = new Date(`${day.date}T00:00:00Z`).getUTCDay();
+      const lv = level(day.contributionCount);
+      out.push(
+        `<rect x="${PAD + wi * PITCH}" y="${gridTop + row * PITCH}" width="${CELL}" height="${CELL}" rx="2" ` +
+          `fill="${HEAT[lv]}"${lv === 0 ? ` stroke="${C.border}"` : ""}><title>${esc(day.date)}: ` +
+          `${day.contributionCount} contribution${day.contributionCount === 1 ? "" : "s"}</title></rect>`,
+      );
+    }
+  });
+
+  const gridBottom = gridTop + 7 * PITCH;
+
+  // Heatmap legend.
+  const legendY = gridBottom + 12;
+  let lx = PAD + INNER - (HEAT.length * (CELL + 3) + 76);
+  out.push(text(lx - 6, legendY + 9, "Less", { size: 10, fill: C.muted, anchor: "end" }));
+  HEAT.forEach((fill, i) => {
+    out.push(
+      `<rect x="${lx + i * (CELL + 3)}" y="${legendY}" width="${CELL}" height="${CELL}" rx="2" fill="${fill}"` +
+        `${i === 0 ? ` stroke="${C.border}"` : ""}/>`,
+    );
+  });
+  out.push(text(lx + HEAT.length * (CELL + 3) + 6, legendY + 9, "More", { size: 10, fill: C.muted }));
+
+  return { svg: out.join("\n"), bottom: legendY + CELL + 6 };
+}

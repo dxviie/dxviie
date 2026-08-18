@@ -1,64 +1,57 @@
 name: Metrics
+
 on:
   schedule:
     - cron: "0 6 * * *"
   push:
-    branches:
-      - main
+    branches: [main]
+    # The job commits these back; regenerating on its own commit is pointless.
+    paths-ignore:
+      - github-metrics.svg
+      - README.md
   workflow_dispatch:
 
+# The card is built in-repo from the GitHub API, so nothing third-party runs
+# here and no long-lived token is handed to code we don't control.
+permissions:
+  contents: write
+
+concurrency:
+  group: metrics
+  cancel-in-progress: false
+
 jobs:
-  github-metrics:
+  metrics:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
-      - name: Read custom CSS
-        id: css
+      - name: Generate metrics card
+        env:
+          GITHUB_LOGIN: ${{ github.repository_owner }}
+          # The ephemeral job token is enough for public profile data. Set a
+          # METRICS_TOKEN secret only to pick up private contribution counts;
+          # a fine-grained PAT with no permissions selected is sufficient.
+          METRICS_TOKEN: ${{ secrets.METRICS_TOKEN || github.token }}
+        run: node scripts/generate-metrics.mjs --out github-metrics.svg
+
+      - name: Commit card
         run: |
-          {
-            echo 'EXTRAS_CSS<<CSSEOF'
-            cat extras.css
-            echo 'CSSEOF'
-          } >> "$GITHUB_OUTPUT"
-
-      - uses: lowlighter/metrics@latest
-        with:
-          token: ${{ secrets.METRICS_TOKEN }}
-          user: dxviie
-          template: classic
-          base: header, activity, community, repositories, metadata
-          plugin_languages: yes
-          plugin_languages_analysis_timeout: 15
-          plugin_languages_categories: markup, programming
-          plugin_languages_colors: github
-          plugin_languages_limit: 8
-          plugin_languages_recent_categories: markup, programming
-          plugin_languages_recent_days: 14
-          plugin_languages_recent_load: 300
-          plugin_languages_sections: most-used
-          plugin_languages_threshold: 0%
-          plugin_lines: yes
-          plugin_lines_history_limit: 1
-          plugin_lines_repositories_limit: 4
-          plugin_lines_sections: base
-          extras_css: ${{ steps.css.outputs.EXTRAS_CSS }}
-          config_display: large
-          config_timezone: Europe/Brussels
-          filename: github-metrics.svg
-
-      - name: Bust README image cache
-        run: |
+          set -euo pipefail
+          # Camo caches by URL, so the README query string has to move with it.
           TIMESTAMP=$(date +%s)
-          git pull --rebase origin main
-          sed -i "s|github-metrics\.svg?v=[0-9]*|github-metrics.svg?v=${TIMESTAMP}|" README.md
-          sed -i "s|github-metrics\.svg)|github-metrics.svg?v=${TIMESTAMP})|" README.md
+          sed -i -E "s|github-metrics\.svg(\?v=[0-9]+)?\)|github-metrics.svg?v=${TIMESTAMP})|" README.md
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add README.md
-          if ! git diff --cached --quiet; then
-            git commit -m "chore: bust metrics cache [skip ci]"
-            git push
+          git add github-metrics.svg README.md
+          if git diff --cached --quiet; then
+            echo "No change to the metrics card."
+            exit 0
           fi
+          git commit -m "chore: refresh metrics card [skip ci]"
+          for attempt in 1 2 3 4; do
+            git pull --rebase origin main && git push origin HEAD:main && exit 0
+            echo "Push failed (attempt ${attempt}); retrying."
+            sleep $((2 ** attempt))
+          done
+          exit 1
