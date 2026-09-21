@@ -2,7 +2,7 @@
 
 ![site screenshot](/assets/d17e-dev-screenshot-2601.png)
 
-![Metrics](https://raw.githubusercontent.com/dxviie/dxviie/2466e87f5afa7e4c10a83fb45626b28a78b2b5e6/github-metrics.svg)
+![Metrics](https://raw.githubusercontent.com/dxviie/dxviie/0f89a54139ce8dc0c1e85ebd67e33d36250a4d99/github-metrics.svg)
 
 <p align="center">
   <a href="https://d17e.dev">
